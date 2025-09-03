@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 # Configuration
 class Config:
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")  # Set your API key here
-    UPLOAD_DIR = Path("/Deep_noteMaker/")
+    UPLOAD_DIR = Path("uploads")
     MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
     ALLOWED_EXTENSIONS = {'.txt', '.pdf', '.docx', '.pptx', '.md', '.py', '.cpp', '.java', '.html', '.css', '.js'}
 

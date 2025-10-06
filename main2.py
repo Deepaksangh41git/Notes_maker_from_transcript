@@ -62,60 +62,76 @@ class NoteGenerator:
             
             # Generate notes with enhanced prompt
             response = model.generate_content(
-                [uploaded_file,""" You are an expert note-maker specializing in converting video lecture transcripts and ppt into beautiful, structured, short and concise study notes .
-Give notes in short points instead of large paragraph.
-**CRITICAL MATH FORMATTING RULE**:
-- ALWAYS keep math formulas on ONE single line
-- NEVER break formulas across multiple lines
-- WRONG: $\frac{d}{dw} J(w)
-$
-- CORRECT: $\frac{d}{dw} J(w)$
+                [uploaded_file,"""You are an expert note-maker specializing in converting video lecture transcripts and presentations into beautiful, structured, short and concise study notes.
 
-**MATHEMATICAL FORMULA ENHANCEMENT**:
-When you encounter mathematical expressions, formulas, or equations:
+**CRITICAL MATH FORMATTING RULES** (EXTREMELY IMPORTANT):
+1. ALWAYS keep ENTIRE math formulas on ONE single line - NEVER break across lines
+2. Use $formula$ for inline math (e.g., $E=mc^2$, $\Theta_{new}$)
+3. Use $$formula$$ for display math on its own line (e.g., $$J(w,b) = \frac{1}{2m}\sum_{i=1}^{m}(f(x^{(i)}) - y^{(i)})^2$$)
+4. NEVER put line breaks inside $ or $$ delimiters
 
-1. **Keep ALL math on single lines**
-2. **Use proper LaTeX notation** with appropriate spacing
-3. **Add descriptive text** before complex formulas
+**WRONG EXAMPLES**:
+❌ $\Theta_{new}
+$ (formula broken across lines)
+❌ $$
+J(w) = ...
+$$ (formula broken across lines)
 
+**CORRECT EXAMPLES**:
+✓ $\Theta_{new} = \Theta_{old} + \Delta\Theta$
+✓ $$J(w,b) = \frac{1}{2m}\sum_{i=1}^{m}(f(x^{(i)}) - y^{(i)})^2$$
 
-**ADVANCED MATH FORMATTING RULES**:
-- **Derivatives**: Use `$\frac{d}{dx}f(x)$` (all on one line)
-- **Functions**: Use `$f(x) = wx + b$` (all on one line)  
-- **Complex formulas**: Use `$$J(w,b) = \frac{1}{2m}\sum_{i=1}^{m}(f(x^{(i)}) - y^{(i)})^2$$` (all on one line)
+**MATHEMATICAL NOTATION**:
+- Variables: $x$, $y$, $\Theta$, $w$, $b$
+- Subscripts: $\Theta_{new}$, $x_i$, $w_0$
+- Superscripts: $x^2$, $w^{(i)}$
+- Fractions: $\frac{numerator}{denominator}$
+- Greek letters: $\alpha$, $\beta$, $\theta$, $\lambda$
+- Summations: $\sum_{i=1}^{n}$
+- Derivatives: $\frac{d}{dx}$, $\frac{\partial J}{\partial w}$
 
-**FORMULA PRESENTATION**:
-- Put important formulas on separate lines but keep the LaTeX on one line
-- Add context before showing the formula
-
-**EXAMPLE FORMAT**:
-                 J(w,b)=(1/2m)∗sum((f(x)−y)2)
-**FORMATTING RULES**:
-- Use `#` for main topics, `##` for sections, `###` for subsections
-- **Bold** important terms and definitions  
+**FORMATTING STRUCTURE**:
+- Use `#` for main topics
+- Use `##` for major sections
+- Use `###` for subsections
+- **Bold** important terms and definitions
 - *Italicize* for emphasis
-- Use `>` for key insights and important quotes
-- Create bullet points for lists and examples
-- Add `---` to separate major sections
+- Use `>` for key insights
+- Create bullet points with `*` or `-`
+- Use `---` to separate major sections
 
-**MATHEMATICAL NOTATION RULES** (VERY IMPORTANT):
-- For inline math (short formulas): `$E=mc^2$` or `$x^2 + y^2 = z^2$`
-- For display math (long formulas): Put on separate lines with blank lines before/after:
+**CONTENT GUIDELINES**:
+1. Give notes in SHORT POINTS instead of large paragraphs
+2. Start with main topic as `# [Topic Name]`
+3. Organize content logically
+4. Include examples and explanations
+5. Extract key formulas, definitions, and concepts
+6. Remove filler words, "um", "uh", repetitions
 
-**CRITICAL MATH FORMATTING**:
-- NEVER break math formulas across multiple lines
-- ALWAYS put complex formulas on their own line
-- Use blank lines before and after display math
-- Keep each formula complete in one $$...$$ block                 
-                 
-**CONTENT STRUCTURE**:
-1. Start with the main topic as `# [Topic Name]`
-2. Organize content into logical sections
-3. Include examples and explanations from the transcript
-4. Extract key formulas, definitions, and concepts
-5. Remove filler words, "um", "uh", repetitions
+**EXAMPLE OUTPUT**:
 
-**OUTPUT**: Clean, well-structured Markdown notes that a student would want to study from."""],
+# Gradient Descent
+
+## Overview
+* **Definition**: An optimization algorithm to minimize the cost function $J(\Theta)$
+* **Goal**: Find optimal parameters $\Theta$ that minimize error
+
+## Update Rule
+The parameter update formula is:
+
+$$\Theta_{new} = \Theta_{old} - \alpha \frac{\partial J}{\partial \Theta}$$
+
+Where:
+* $\Theta$ = parameter vector
+* $\alpha$ = learning rate
+* $\frac{\partial J}{\partial \Theta}$ = gradient (partial derivative)
+
+## Key Points
+* Start with random initialization of $\Theta_0$
+* Iterate until convergence
+* Learning rate $\alpha$ controls step size
+
+**OUTPUT**: Clean, well-structured Markdown notes with properly formatted mathematics."""],
                 generation_config=genai.types.GenerationConfig(
                     temperature=0.7,
                     top_p=0.8,
@@ -197,32 +213,44 @@ class PDFGenerator:
     
     def _markdown_to_html(self, markdown_text: str) -> str:
         import markdown
-        from katex import render
-    
-        # --- Replace inline math $...$ ---
-        def replace_inline_math(match):
-            latex = match.group(1).strip()
-            try:
-                return render(latex, display_mode=False)
-            except Exception as e:
-                return f"<code>{latex}</code>"
-    
-        # --- Replace display math $$...$$ ---
-        def replace_display_math(match):
-            latex = match.group(1).strip()
-            try:
-                return render(latex, display_mode=True)
-            except Exception as e:
-                return f"<pre>{latex}</pre>"
-    
-        # Replace math expressions with KaTeX HTML
-        markdown_text = re.sub(r"\$\$(.+?)\$\$", replace_display_math, markdown_text, flags=re.DOTALL)
-        markdown_text = re.sub(r"\$(.+?)\$", replace_inline_math, markdown_text)
-    
-        # Convert Markdown → HTML
-        md = markdown.Markdown(extensions=['tables', 'fenced_code', 'toc'])
+        import re
+        
+        # Store math expressions to protect them during markdown conversion
+        math_expressions = []
+        
+        def store_display_math(match):
+            """Store display math and replace with placeholder"""
+            math_expressions.append(('display', match.group(1).strip()))
+            return f"MATH_PLACEHOLDER_{len(math_expressions)-1}_DISPLAY"
+        
+        def store_inline_math(match):
+            """Store inline math and replace with placeholder"""
+            math_expressions.append(('inline', match.group(1).strip()))
+            return f"MATH_PLACEHOLDER_{len(math_expressions)-1}_INLINE"
+        
+        # Extract and store math expressions (display math first to avoid conflicts)
+        markdown_text = re.sub(r'\$\$(.+?)\$\$', store_display_math, markdown_text, flags=re.DOTALL)
+        markdown_text = re.sub(r'\$([^\$]+?)\$', store_inline_math, markdown_text)
+        
+        # Convert Markdown to HTML
+        md = markdown.Markdown(extensions=['tables', 'fenced_code', 'toc', 'nl2br'])
         html_content = md.convert(markdown_text)
-    
+        
+        # Restore math expressions with proper KaTeX rendering
+        def restore_math(match):
+            idx = int(match.group(1))
+            math_type, latex = math_expressions[idx]
+            
+            # Escape special characters for HTML
+            latex_escaped = latex.replace('\\', '\\\\').replace('"', '&quot;')
+            
+            if math_type == 'display':
+                return f'<div class="math-display"><span class="katex-display" data-latex="{latex_escaped}">{latex}</span></div>'
+            else:
+                return f'<span class="katex-inline" data-latex="{latex_escaped}">{latex}</span>'
+        
+        html_content = re.sub(r'MATH_PLACEHOLDER_(\d+)_(DISPLAY|INLINE)', restore_math, html_content)
+        
         return f"""
         <!DOCTYPE html>
         <html>
@@ -230,28 +258,148 @@ class PDFGenerator:
             <meta charset="UTF-8">
             <title>Beautiful Study Notes</title>
             <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+            <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+            <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
             <style>
                 body {{
-                    font-family: 'Inter', sans-serif;
-                    line-height: 1.6;
+                    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+                    line-height: 1.8;
                     color: #2d3748;
                     max-width: 190mm;
                     margin: 0 auto;
                     padding: 15mm 10mm;
                     background: #ffffff;
                 }}
+                
+                .math-display {{
+                    margin: 1.5em 0;
+                    text-align: center;
+                    overflow-x: auto;
+                }}
+                
                 .katex-display {{
+                    display: block;
                     margin: 1em 0;
                     text-align: center;
+                }}
+                
+                .katex-inline {{
+                    display: inline-block;
+                    margin: 0 0.2em;
+                }}
+                
+                /* Ensure math doesn't break */
+                .katex {{
+                    font-size: 1.1em;
+                    white-space: nowrap;
+                }}
+                
+                /* Better code styling */
+                code {{
+                    background: #f7fafc;
+                    padding: 0.2em 0.4em;
+                    border-radius: 3px;
+                    font-family: 'JetBrains Mono', monospace;
+                    font-size: 0.9em;
+                }}
+                
+                pre {{
+                    background: #1a202c;
+                    color: #f7fafc;
+                    padding: 1.2em;
+                    border-radius: 8px;
+                    overflow-x: auto;
+                }}
+                
+                /* List styling */
+                ul, ol {{
+                    margin: 1em 0;
+                    padding-left: 2em;
+                }}
+                
+                li {{
+                    margin: 0.5em 0;
+                    line-height: 1.6;
+                }}
+                
+                /* Heading styles */
+                h1 {{
+                    font-size: 1.8em;
+                    color: #1a202c;
+                    border-bottom: 3px solid #4299e1;
+                    padding-bottom: 0.3em;
+                    margin-top: 1.5em;
+                    margin-bottom: 0.8em;
+                }}
+                
+                h2 {{
+                    font-size: 1.4em;
+                    color: #2d3748;
+                    margin-top: 1.2em;
+                    margin-bottom: 0.6em;
+                    border-left: 4px solid #4299e1;
+                    padding-left: 0.8em;
+                }}
+                
+                h3 {{
+                    font-size: 1.2em;
+                    color: #4a5568;
+                    margin-top: 1em;
+                    margin-bottom: 0.5em;
+                }}
+                
+                strong {{
+                    color: #1a202c;
+                    font-weight: 600;
+                }}
+                
+                blockquote {{
+                    border-left: 4px solid #38b2ac;
+                    background: #e6fffa;
+                    padding: 0.8em 1.2em;
+                    margin: 1.2em 0;
+                    border-radius: 0 8px 8px 0;
                 }}
             </style>
         </head>
         <body>
-        {html_content}
+            {html_content}
+            <script>
+                // Render all KaTeX expressions after page loads
+                document.addEventListener("DOMContentLoaded", function() {{
+                    // Render display math
+                    document.querySelectorAll('.katex-display').forEach(function(element) {{
+                        const latex = element.getAttribute('data-latex');
+                        try {{
+                            katex.render(latex, element, {{
+                                displayMode: true,
+                                throwOnError: false,
+                                fleqn: false
+                            }});
+                        }} catch (e) {{
+                            console.error('KaTeX render error:', e);
+                            element.textContent = latex;
+                        }}
+                    }});
+                    
+                    // Render inline math
+                    document.querySelectorAll('.katex-inline').forEach(function(element) {{
+                        const latex = element.getAttribute('data-latex');
+                        try {{
+                            katex.render(latex, element, {{
+                                displayMode: false,
+                                throwOnError: false
+                            }});
+                        }} catch (e) {{
+                            console.error('KaTeX render error:', e);
+                            element.textContent = latex;
+                        }}
+                    }});
+                }});
+            </script>
         </body>
         </html>
         """
-
     
     def _get_beautiful_css(self) -> str:
         """Return beautiful CSS styles for the PDF."""

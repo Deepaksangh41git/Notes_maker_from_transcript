@@ -197,35 +197,31 @@ class PDFGenerator:
     
     def _markdown_to_html(self, markdown_text: str) -> str:
         import markdown
-
-        # Convert inline math $...$ and display math $$...$$ to MathML
-        def replace_inline_math(match):
-            latex = match.group(1)
-            return latex2mathml.converter.convert(latex)
-
-        def replace_display_math(match):
-            latex = match.group(1)
-            return f"<div class='math'>{latex2mathml.converter.convert(latex)}</div>"
-
-        # Replace math expressions
-        markdown_text = re.sub(r"\$\$(.+?)\$\$", replace_display_math, markdown_text, flags=re.DOTALL)
-        markdown_text = re.sub(r"\$(.+?)\$", replace_inline_math, markdown_text)
-
+    
+        # Keep $...$ and $$...$$ as-is (do not convert to MathML)
         md = markdown.Markdown(extensions=['tables', 'fenced_code', 'toc'])
         html_content = md.convert(markdown_text)
-
+    
         return f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <title>Beautiful Study Notes</title>
-    </head>
-    <body>
-    {html_content}
-    </body>
-    </html>
-    """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Beautiful Study Notes</title>
+            <script>
+              MathJax = {{
+                tex: {{ inlineMath: [['$', '$'], ['\\\\(', '\\\\)']] }},
+                svg: {{ fontCache: 'global' }}
+              }};
+            </script>
+            <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+        </head>
+        <body>
+        {html_content}
+        </body>
+        </html>
+        """
+
     
     def _get_beautiful_css(self) -> str:
         """Return beautiful CSS styles for the PDF."""

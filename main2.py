@@ -211,45 +211,83 @@ class PDFGenerator:
         
         return merged_content
     
+    def _render_latex_to_image(self, latex: str, display_mode: bool = False) -> str:
+        """Render LaTeX to PNG image using matplotlib (best quality)"""
+        import matplotlib.pyplot as plt
+        import matplotlib
+        matplotlib.use('Agg')
+        import io
+        import base64
+        
+        try:
+            # Create figure
+            fig = plt.figure(figsize=(10, 2) if display_mode else (3, 0.5))
+            fig.patch.set_facecolor('white')
+            
+            # Render LaTeX
+            plt.text(
+                0.5, 0.5, f'${latex}$' if not display_mode else f'$${latex}$$',
+                fontsize=16 if display_mode else 14,
+                ha='center',
+                va='center',
+                transform=fig.transFigure
+            )
+            plt.axis('off')
+            
+            # Save to bytes
+            buf = io.BytesIO()
+            plt.savefig(buf, format='png', dpi=150, bbox_inches='tight', 
+                       pad_inches=0.1, facecolor='white')
+            plt.close(fig)
+            
+            # Convert to base64
+            buf.seek(0)
+            img_base64 = base64.b64encode(buf.read()).decode('utf-8')
+            
+            if display_mode:
+                return f'<div class="math-display"><img src="data:image/png;base64,{img_base64}" alt="{latex}" style="max-width: 100%; height: auto;"/></div>'
+            else:
+                return f'<img src="data:image/png;base64,{img_base64}" alt="{latex}" class="math-inline" style="vertical-align: middle; height: 1.2em;"/>'
+        
+        except Exception as e:
+            logger.error(f"Error rendering LaTeX: {str(e)}")
+            # Fallback to code display
+            latex_escaped = latex.replace('<', '&lt;').replace('>', '&gt;')
+            if display_mode:
+                return f'<div class="math-display math-fallback"><code>{latex_escaped}</code></div>'
+            else:
+                return f'<code class="math-inline math-fallback">{latex_escaped}</code>'
+    
+
     def _markdown_to_html(self, markdown_text: str) -> str:
+        """Convert markdown to HTML with proper math rendering using images"""
         import markdown
         import re
         
-        # Store math expressions to protect them during markdown conversion
+        # Store math expressions
         math_expressions = []
         
         def store_display_math(match):
-            """Store display math and replace with placeholder"""
             math_expressions.append(('display', match.group(1).strip()))
-            return f"MATH_PLACEHOLDER_{len(math_expressions)-1}_DISPLAY"
+            return f"\n\nMATH_DISPLAY_{len(math_expressions)-1}\n\n"
         
         def store_inline_math(match):
-            """Store inline math and replace with placeholder"""
             math_expressions.append(('inline', match.group(1).strip()))
-            return f"MATH_PLACEHOLDER_{len(math_expressions)-1}_INLINE"
+            return f"MATH_INLINE_{len(math_expressions)-1}"
         
-        # Extract and store math expressions (display math first to avoid conflicts)
+        # Extract math (display first to avoid conflicts)
         markdown_text = re.sub(r'\$\$(.+?)\$\$', store_display_math, markdown_text, flags=re.DOTALL)
-        markdown_text = re.sub(r'\$([^\$]+?)\$', store_inline_math, markdown_text)
+        markdown_text = re.sub(r'\$([^\$\n]+?)\$', store_inline_math, markdown_text)
         
         # Convert Markdown to HTML
         md = markdown.Markdown(extensions=['tables', 'fenced_code', 'toc', 'nl2br'])
         html_content = md.convert(markdown_text)
         
-        # Restore math expressions with proper KaTeX rendering
-        def restore_math(match):
-            idx = int(match.group(1))
-            math_type, latex = math_expressions[idx]
-            
-            # Escape special characters for HTML
-            latex_escaped = latex.replace('\\', '\\\\').replace('"', '&quot;')
-            
-            if math_type == 'display':
-                return f'<div class="math-display"><span class="katex-display" data-latex="{latex_escaped}">{latex}</span></div>'
-            else:
-                return f'<span class="katex-inline" data-latex="{latex_escaped}">{latex}</span>'
-        
-        html_content = re.sub(r'MATH_PLACEHOLDER_(\d+)_(DISPLAY|INLINE)', restore_math, html_content)
+        # Restore math as images
+        for idx, (math_type, latex) in enumerate(math_expressions):
+            placeholder = f"MATH_{math_type.upper()}_{idx}"
+            rendered = self._render_latex_to_image(latex, display_mode=(math_type == 'display'))
+            html_content = html_content.replace(placeholder, rendered)
         
         return f"""
         <!DOCTYPE html>
@@ -257,10 +295,9 @@ class PDFGenerator:
         <head>
             <meta charset="UTF-8">
             <title>Beautiful Study Notes</title>
-            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
-            <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
-            <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
             <style>
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+                
                 body {{
                     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
                     line-height: 1.8;
@@ -274,44 +311,45 @@ class PDFGenerator:
                 .math-display {{
                     margin: 1.5em 0;
                     text-align: center;
-                    overflow-x: auto;
+                    page-break-inside: avoid;
                 }}
                 
-                .katex-display {{
-                    display: block;
-                    margin: 1em 0;
-                    text-align: center;
+                .math-display img {{
+                    max-width: 100%;
+                    height: auto;
                 }}
                 
-                .katex-inline {{
-                    display: inline-block;
-                    margin: 0 0.2em;
+                .math-inline {{
+                    vertical-align: middle;
+                    margin: 0 0.1em;
                 }}
                 
-                /* Ensure math doesn't break */
-                .katex {{
-                    font-size: 1.1em;
-                    white-space: nowrap;
+                /* Rest of your existing CSS... */
+                h1 {{
+                    font-size: 1.8em;
+                    color: #1a202c;
+                    border-bottom: 3px solid #4299e1;
+                    padding-bottom: 0.3em;
+                    margin: 1.5em 0 0.8em 0;
+                    font-weight: 700;
                 }}
                 
-                /* Better code styling */
-                code {{
-                    background: #f7fafc;
-                    padding: 0.2em 0.4em;
-                    border-radius: 3px;
-                    font-family: 'JetBrains Mono', monospace;
-                    font-size: 0.9em;
+                h2 {{
+                    font-size: 1.4em;
+                    color: #2d3748;
+                    margin: 1.2em 0 0.6em 0;
+                    font-weight: 600;
+                    border-left: 4px solid #4299e1;
+                    padding-left: 0.8em;
                 }}
                 
-                pre {{
-                    background: #1a202c;
-                    color: #f7fafc;
-                    padding: 1.2em;
-                    border-radius: 8px;
-                    overflow-x: auto;
+                h3 {{
+                    font-size: 1.2em;
+                    color: #4a5568;
+                    margin: 1em 0 0.5em 0;
+                    font-weight: 500;
                 }}
                 
-                /* List styling */
                 ul, ol {{
                     margin: 1em 0;
                     padding-left: 2em;
@@ -322,30 +360,22 @@ class PDFGenerator:
                     line-height: 1.6;
                 }}
                 
-                /* Heading styles */
-                h1 {{
-                    font-size: 1.8em;
-                    color: #1a202c;
-                    border-bottom: 3px solid #4299e1;
-                    padding-bottom: 0.3em;
-                    margin-top: 1.5em;
-                    margin-bottom: 0.8em;
+                code {{
+                    background: #f7fafc;
+                    padding: 0.2em 0.4em;
+                    border-radius: 3px;
+                    font-family: 'Courier New', monospace;
+                    font-size: 0.9em;
+                    color: #e53e3e;
                 }}
                 
-                h2 {{
-                    font-size: 1.4em;
-                    color: #2d3748;
-                    margin-top: 1.2em;
-                    margin-bottom: 0.6em;
-                    border-left: 4px solid #4299e1;
-                    padding-left: 0.8em;
-                }}
-                
-                h3 {{
-                    font-size: 1.2em;
-                    color: #4a5568;
-                    margin-top: 1em;
-                    margin-bottom: 0.5em;
+                pre {{
+                    background: #1a202c;
+                    color: #f7fafc;
+                    padding: 1.2em;
+                    border-radius: 8px;
+                    overflow-x: auto;
+                    margin: 1.2em 0;
                 }}
                 
                 strong {{
@@ -364,39 +394,6 @@ class PDFGenerator:
         </head>
         <body>
             {html_content}
-            <script>
-                // Render all KaTeX expressions after page loads
-                document.addEventListener("DOMContentLoaded", function() {{
-                    // Render display math
-                    document.querySelectorAll('.katex-display').forEach(function(element) {{
-                        const latex = element.getAttribute('data-latex');
-                        try {{
-                            katex.render(latex, element, {{
-                                displayMode: true,
-                                throwOnError: false,
-                                fleqn: false
-                            }});
-                        }} catch (e) {{
-                            console.error('KaTeX render error:', e);
-                            element.textContent = latex;
-                        }}
-                    }});
-                    
-                    // Render inline math
-                    document.querySelectorAll('.katex-inline').forEach(function(element) {{
-                        const latex = element.getAttribute('data-latex');
-                        try {{
-                            katex.render(latex, element, {{
-                                displayMode: false,
-                                throwOnError: false
-                            }});
-                        }} catch (e) {{
-                            console.error('KaTeX render error:', e);
-                            element.textContent = latex;
-                        }}
-                    }});
-                }});
-            </script>
         </body>
         </html>
         """

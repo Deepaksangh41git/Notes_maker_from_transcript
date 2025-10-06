@@ -197,8 +197,29 @@ class PDFGenerator:
     
     def _markdown_to_html(self, markdown_text: str) -> str:
         import markdown
+        from katex import render
     
-        # Keep $...$ and $$...$$ as-is (do not convert to MathML)
+        # --- Replace inline math $...$ ---
+        def replace_inline_math(match):
+            latex = match.group(1).strip()
+            try:
+                return render(latex, display_mode=False)
+            except Exception as e:
+                return f"<code>{latex}</code>"
+    
+        # --- Replace display math $$...$$ ---
+        def replace_display_math(match):
+            latex = match.group(1).strip()
+            try:
+                return render(latex, display_mode=True)
+            except Exception as e:
+                return f"<pre>{latex}</pre>"
+    
+        # Replace math expressions with KaTeX HTML
+        markdown_text = re.sub(r"\$\$(.+?)\$\$", replace_display_math, markdown_text, flags=re.DOTALL)
+        markdown_text = re.sub(r"\$(.+?)\$", replace_inline_math, markdown_text)
+    
+        # Convert Markdown → HTML
         md = markdown.Markdown(extensions=['tables', 'fenced_code', 'toc'])
         html_content = md.convert(markdown_text)
     
@@ -208,13 +229,22 @@ class PDFGenerator:
         <head>
             <meta charset="UTF-8">
             <title>Beautiful Study Notes</title>
-            <script>
-              MathJax = {{
-                tex: {{ inlineMath: [['$', '$'], ['\\\\(', '\\\\)']] }},
-                svg: {{ fontCache: 'global' }}
-              }};
-            </script>
-            <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+            <style>
+                body {{
+                    font-family: 'Inter', sans-serif;
+                    line-height: 1.6;
+                    color: #2d3748;
+                    max-width: 190mm;
+                    margin: 0 auto;
+                    padding: 15mm 10mm;
+                    background: #ffffff;
+                }}
+                .katex-display {{
+                    margin: 1em 0;
+                    text-align: center;
+                }}
+            </style>
         </head>
         <body>
         {html_content}
